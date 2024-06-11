@@ -34,7 +34,7 @@
 
         // Function to connect to the WebSocket server
         function connectWebSocket() {
-            websocket = new WebSocket("ws://housing-milton.gl.at.ply.gg:19023"); // Replace with your WebSocket server URL
+            websocket = new WebSocket("wss://housing-milton.gl.at.ply.gg:19023");
             
             websocket.onopen = function () {
                 console.log("WebSocket connection established.");
