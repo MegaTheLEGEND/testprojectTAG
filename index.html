@@ -17,10 +17,9 @@
 
         // Generate UUID and save it to local storage
         function generateUUID() {
-            if (!localStorage.getItem('uuid')) {
-                const uuid = generateRandomUUID();
-                localStorage.setItem('uuid', uuid);
-            }
+            const uuid = localStorage.getItem('uuid') || generateRandomUUID();
+            localStorage.setItem('uuid', uuid);
+            return uuid;
         }
 
         // Function to generate a random UUID
@@ -32,14 +31,34 @@
             });
         }
 
+        // Prompt user for their name and save it to local storage
+        function promptForName() {
+            let name = localStorage.getItem('name');
+            if (!name) {
+                name = prompt("Please enter your name:");
+                if (name) {
+                    localStorage.setItem('name', name);
+                }
+            }
+            return name;
+        }
+
         // Function to connect to the WebSocket server
         function connectWebSocket() {
-            websocket = new WebSocket("wss://nerf.seanleonard.xyz/server");
+            websocket = new WebSocket("wss://nerf.seanleonard.xyz/server"); // Replace with your WebSocket server URL
             
             websocket.onopen = function () {
                 console.log("WebSocket connection established.");
-                generateUUID();
+                const uuid = generateUUID();
+                const name = promptForName();
                 clearInterval(reconnectInterval); // Clear the reconnect interval upon successful connection
+
+                // Send initial data to the server
+                const initialData = {
+                    Static_ID: uuid,
+                    name: name
+                };
+                websocket.send(JSON.stringify(initialData));
             };
 
             websocket.onmessage = function (event) {
@@ -55,72 +74,45 @@
         }
 
         // Function to send data to the server
-        function sendData(latitude, longitude) {
+        function sendData() {
             const uuid = localStorage.getItem('uuid');
-            if (!uuid) {
-                console.error("UUID not found in local storage.");
+            const name = localStorage.getItem('name');
+            if (!uuid || !name) {
+                console.error("UUID or name not found in local storage.");
                 return;
             }
 
-            const locationData = {
-                latitude: latitude,
-                longitude: longitude
-            };
+            // Fetch GPS data from the browser
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const locationData = {
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude
+                };
 
-            const data = {
-                Static_ID: uuid,
-                location: locationData
-            };
+                const data = {
+                    Static_ID: uuid,
+                    name: name,
+                    location: locationData
+                };
 
-            if (websocket && websocket.readyState === WebSocket.OPEN) {
-                websocket.send(JSON.stringify(data));
-                document.getElementById('status').style.display = 'block';
-                setTimeout(function() {
-                    document.getElementById('status').style.display = 'none';
-                }, 3000); // Hide status message after 3 seconds
-            } else {
-                console.error("WebSocket connection is not open.");
-            }
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    websocket.send(JSON.stringify(data));
+                    document.getElementById('status').style.display = 'block';
+                    setTimeout(function() {
+                        document.getElementById('status').style.display = 'none';
+                    }, 3000); // Hide status message after 3 seconds
+                } else {
+                    console.error("WebSocket connection is not open.");
+                }
+            }, function(error) {
+                console.error("Error fetching GPS data:", error.message);
+            });
         }
 
         // Initialize WebSocket connection
-        connectWebSocket();
-
-        // Geolocation success callback
-        var browserGeolocationSuccess = function(position) {
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            sendData(latitude, longitude);
+        window.onload = function() {
+            connectWebSocket();
         };
-
-        // Geolocation fail callback
-        var browserGeolocationFail = function(error) {
-            switch (error.code) {
-                case error.TIMEOUT:
-                    console.error("Browser geolocation error! Timeout.");
-                    break;
-                case error.PERMISSION_DENIED:
-                    console.error("Browser geolocation error! Permission denied.");
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    console.error("Browser geolocation error! Position unavailable.");
-                    break;
-            }
-        };
-
-        // Try geolocation
-        var tryGeolocation = function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    browserGeolocationSuccess,
-                    browserGeolocationFail,
-                    {maximumAge: 50000, timeout: 20000, enableHighAccuracy: true}
-                );
-            }
-        };
-
-        // Call tryGeolocation to initiate obtaining user's location
-        tryGeolocation();
     </script>
 </head>
 <body>
