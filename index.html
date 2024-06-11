@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Client</title>
+    <style>
+        #status {
+            display: none;
+            color: green;
+            font-weight: bold;
+        }
+    </style>
+    <script>
+        let websocket; // Declare the websocket variable globally
+        let reconnectInterval; // Interval for reconnection attempts
+
+        // Generate UUID and save it to local storage
+        function generateUUID() {
+            if (!localStorage.getItem('uuid')) {
+                const uuid = generateRandomUUID();
+                localStorage.setItem('uuid', uuid);
+            }
+        }
+
+        // Function to generate a random UUID
+        function generateRandomUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0,
+                    v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Function to connect to the WebSocket server
+        function connectWebSocket() {
+            websocket = new WebSocket("ws://housing-milton.gl.at.ply.gg:19023"); // Replace with your WebSocket server URL
+            
+            websocket.onopen = function () {
+                console.log("WebSocket connection established.");
+                generateUUID();
+                clearInterval(reconnectInterval); // Clear the reconnect interval upon successful connection
+            };
+
+            websocket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                console.log("Received data:", data);
+                // You can update the UI here with the received data
+            };
+
+            websocket.onclose = function () {
+                console.log("WebSocket connection closed. Reconnecting...");
+                reconnectInterval = setInterval(connectWebSocket, 4000); // Attempt to reconnect every 4 seconds
+            };
+        }
+
+        // Function to send data to the server
+        function sendData(latitude, longitude) {
+            const uuid = localStorage.getItem('uuid');
+            if (!uuid) {
+                console.error("UUID not found in local storage.");
+                return;
+            }
+
+            const locationData = {
+                latitude: latitude,
+                longitude: longitude
+            };
+
+            const data = {
+                Static_ID: uuid,
+                location: locationData
+            };
+
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify(data));
+                document.getElementById('status').style.display = 'block';
+                setTimeout(function() {
+                    document.getElementById('status').style.display = 'none';
+                }, 3000); // Hide status message after 3 seconds
+            } else {
+                console.error("WebSocket connection is not open.");
+            }
+        }
+
+        // Initialize WebSocket connection
+        connectWebSocket();
+
+        // Geolocation success callback
+        var browserGeolocationSuccess = function(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            sendData(latitude, longitude);
+        };
+
+        // Geolocation fail callback
+        var browserGeolocationFail = function(error) {
+            switch (error.code) {
+                case error.TIMEOUT:
+                    console.error("Browser geolocation error! Timeout.");
+                    break;
+                case error.PERMISSION_DENIED:
+                    console.error("Browser geolocation error! Permission denied.");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    console.error("Browser geolocation error! Position unavailable.");
+                    break;
+            }
+        };
+
+        // Try geolocation
+        var tryGeolocation = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    browserGeolocationSuccess,
+                    browserGeolocationFail,
+                    {maximumAge: 50000, timeout: 20000, enableHighAccuracy: true}
+                );
+            }
+        };
+
+        // Call tryGeolocation to initiate obtaining user's location
+        tryGeolocation();
+    </script>
+</head>
+<body>
+    <h1>WebSocket Client</h1>
+    <button onclick="sendData()">Send Location Data</button>
+    <div id="status">Location data sent successfully!</div>
+</body>
+</html>
